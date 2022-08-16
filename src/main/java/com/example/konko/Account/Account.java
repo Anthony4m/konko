@@ -1,6 +1,7 @@
 package com.example.konko.Account;
 
 import com.example.konko.User.User;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,7 @@ import javax.persistence.OneToMany;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @ToString
@@ -33,7 +35,7 @@ import java.time.LocalDateTime;
 @Table(name = "account_table",uniqueConstraints = {
         @UniqueConstraint(name = "account_number_unique_constraint", columnNames = "account_Number")
 })
-public class Account {
+public class Account implements Serializable {
 
     public Account(String accountName, String accountNumber, LocalDateTime createdAt, boolean active, Double balance, AccountType accountType, User userId) {
         this.accountName = accountName;
@@ -81,14 +83,15 @@ public class Account {
     private AccountType accountType;
 
     @ManyToOne(
-            cascade = CascadeType.ALL,
+            cascade = {CascadeType.MERGE, CascadeType.PERSIST, CascadeType.DETACH,CascadeType.REFRESH},
             optional = false,
-            fetch = FetchType.EAGER
+            fetch = FetchType.LAZY
     )
     @JoinColumn(
             name = "user_id",
             referencedColumnName = "id"
     )
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User userId;
 
 }
