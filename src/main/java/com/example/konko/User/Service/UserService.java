@@ -1,35 +1,46 @@
 package com.example.konko.User.Service;
 
 import com.example.konko.User.Auth.AuthService;
-import com.example.konko.User.Model.UserModel;
+import com.example.konko.User.Dto.UserDto;
 import com.example.konko.User.User;
 import com.example.konko.User.UserRepository;
 import com.example.konko.User.UserRole;
+import com.example.konko.Utils.AuthFilter;
 import com.example.konko.Utils.EmailValidator;
 import com.example.konko.Utils.JWTUtility;
 import com.example.konko.Utils.PasswordEncoder;
 import com.example.konko.token.Token;
 import com.example.konko.token.TokenService;
-import com.example.konko.token.TokenServiceRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import static org.springframework.http.HttpHeaders.AUTHORIZATION;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
 @Service
 @AllArgsConstructor
+@Slf4j
 public class UserService implements UserDetailsService {
 
     @Autowired
@@ -37,26 +48,31 @@ public class UserService implements UserDetailsService {
     @Autowired
     private EmailValidator emailValidator;
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    BCryptPasswordEncoder passwordEncoder;
     @Autowired
     private TokenService tokenService;
     @Autowired
     private JWTUtility jwtUtility;
     @Autowired
     private AuthService authService;
+    @Autowired
+    private AuthFilter authFilter;
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email).orElseThrow(()->{
+        User user = userRepository.findByEmail(email).get();
+        if(user == null) {
             new UsernameNotFoundException("User not found");
-            return null;
-        });
+        }
+        Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority(user.getUserRole().toString()));
+        return new org.springframework.security.core.userdetails.User(user.getUsername(),user.getPassword(),authorities);
     }
 
-    public String register(UserModel userModel){
+    public String register(UserDto userModel){
     boolean isValidEmail = emailValidator.isValidEmailAddress(userModel.getEmail());
 
     if (!isValidEmail){
-        throw new IllegalStateException("email Is invalid");
+        return  "email Is invalid";
     }
 
     return signUpUser(
@@ -73,10 +89,10 @@ public class UserService implements UserDetailsService {
 //  Check if user already Exist
     boolean userExist = userRepository.findByEmail(user.getEmail()).isPresent();
     if (userExist){
-        throw new IllegalStateException("User Already Exists");
+        return "User Already Exists";
     }
-    //Hash password
-    String passwordEncoded = passwordEncoder.bCryptPasswordEncoder().encode(user.getPassword());
+//    //Hash password
+    String passwordEncoded = passwordEncoder.encode(user.getPassword());
     user.setPassword(passwordEncoded);
     userRepository.save(user);
 
@@ -99,11 +115,6 @@ public class UserService implements UserDetailsService {
         Token token = tokenService.getToken(confirmationToken).orElseThrow(()->{
             throw new IllegalStateException("Token is invalid");
         });
-//        try {
-//            authService.authenticate(token);
-//        }catch (BadCredentialsException e){
-//            throw  new Exception("invalid Credentials");
-//        }
 
         //check if token expired
         LocalDateTime expiredAt = token.getExpiredAt();
@@ -121,5 +132,26 @@ public class UserService implements UserDetailsService {
 
     private void enableUser(String email) {
         userRepository.enableUser(email);
+    }
+    public void generateRefreshToken(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String authoriztionHeader = request.getHeader(AUTHORIZATION);
+        if(authoriztionHeader != null && authoriztionHeader.startsWith("Bearer ")){
+            try {
+                String refresh_token = authoriztionHeader.substring("Bearer ".length());
+                String subject = authFilter.vaildateAuthToken(request,authoriztionHeader);
+                org.springframework.security.core.userdetails.User user = (org.springframework.security.core.userdetails.User) loadUserByUsername(subject);
+                authFilter.generateAuthToken(request,response,user,refresh_token);
+            }catch (Exception e){
+                log.error("Error Loggin in{}", e.getMessage());
+                response.setHeader("Error",e.getMessage());
+                response.setStatus(FORBIDDEN.value());
+                Map<String,String> error = new HashMap<>();
+                error.put("Error_Message", e.getMessage());
+                response.setContentType(APPLICATION_JSON_VALUE);
+                new ObjectMapper().writeValue(response.getOutputStream(),error);
+            }
+        }else {
+            throw new  RuntimeException("Refresh token Missing");
+        }
     }
 }
