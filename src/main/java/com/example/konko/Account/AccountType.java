@@ -1,4 +1,4 @@
-package com.example.konko.Account;
+package com.example.konko.account;
 
 public enum AccountType {
     SAVING,

@@ -1,10 +1,10 @@
-package com.example.konko.Account.Model;
+package com.example.konko.account.dto;
 
-import com.example.konko.Account.AccountType;
-import com.example.konko.User.User;
+import com.example.konko.account.AccountType;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
@@ -13,8 +13,9 @@ import lombok.ToString;
 @Setter
 @AllArgsConstructor
 @ToString
+@NoArgsConstructor
 @EqualsAndHashCode
-public class AccountModel {
+public class AccountDto {
     private String accountName;
     private String accountNumber;
     private boolean active;

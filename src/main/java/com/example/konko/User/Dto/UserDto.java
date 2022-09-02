@@ -1,16 +1,17 @@
-package com.example.konko.User.Model;
+package com.example.konko.User.Dto;
 
-import com.example.konko.User.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.ToString;
 
 @AllArgsConstructor
+@NoArgsConstructor
 @EqualsAndHashCode
 @ToString
 @Getter
-public class UserModel {
+public class UserDto {
     private String firstName;
     private String lastName;
     private String userName;
